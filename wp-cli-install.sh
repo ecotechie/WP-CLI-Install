@@ -3,7 +3,7 @@ set -e
 set -o pipefail
 
 # If wpcli is not installed and user is not "root"
-if ! [[ wp cli version ]] && [[ "$EUID" -ne 0  ]]; then
+if ! wp cli version && "$EUID" -ne 0 ; then
 	curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
 	chmod +x wp-cli.phar
 	mkdir -p ~/bin
