@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -e
+set -o pipefail
+
+if [[ "$1" == "remove" ]]; then
+	echo "Removing WP-CLI"
+	rm ~/bin/wp
+	rm -rf ~/.wp-cli
+	sed -i "/#WP-CLI-Install/d"  ~/.bashrc
+	sed -i "/#WP-CLI-Install/d" ~/.bash_profile
+	exit 1
+fi
+
+# If WP-CLI is not installed and user is not "root"
+if [[ ! -x "$(command -v wp)" && "$EUID" -ne 0 ]]; then
+	echo "Installing WP-CLI"
+	mkdir -p ~/.wp-cli ~/bin
+	cd ~/.wp-cli
+
+	curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+	chmod +x wp-cli.phar
+	mv wp-cli.phar ~/bin/wp
+	echo "PATH=~/bin:$PATH #WP-CLI-Install" >> ~/.bashrc
+	. ~/.bashrc
+
+	curl -O https://raw.githubusercontent.com/wp-cli/wp-cli/master/utils/wp-completion.bash
+	echo "source ~/.wp-cli/wp-completion.bash #WP-CLI-Install" >> ~/.bash_profile
+	. ~/.bash_profile
+fi
+
+exit 1
