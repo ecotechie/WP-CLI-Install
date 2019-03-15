@@ -2,14 +2,23 @@
 set -e
 set -o pipefail
 
-# If wpcli is not installed and user is not "root"
+# If wpcli is not installed and user is not "root".
 if [[ ! -x "$(command -v wp)" && "$EUID" -ne 0 ]]; then
 	curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
 	chmod +x wp-cli.phar
 	mkdir -p ~/bin
 	mv wp-cli.phar ~/bin/wp
-	echo "PATH=~/bin:$PATH" >> ~/.bashrc
-	. ~/.bashrc
+
+	# Get currently running shell.
+	shell=$(echo $0)
+	case $shell in
+		bash ) echo "PATH=~/bin:$PATH" >> ~/.bashrc;;
+		csh ) echo "PATH=~/bin:$PATH" >> ~/.cshrc;;
+		sh ) echo "PATH=~/bin:$PATH" >> ~/.shrc;;
+		zsh ) echo "PATH=~/bin:$PATH" >> ~/.zshrc;;
+		* ) echo "I don't know that shell yet, sorry..."; exit 1;;
+	esac
+	exec $shell
 	wp cli version
 fi
 
