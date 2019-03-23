@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -e
+set -o pipefail
+
+[[ "$1" == "" ]] && echo "This command must be followed by a WP-CLI @alias!" && exit 1
+
+wp $1 core download --force
+wp $1 config create --prompt=dbname,dbuser,dbpass
+wp $1 db create
+wp $1 core install --prompt=url,title,admin_user,admin_password,admin_email
+
+url=$(wp $1 option get siteurl)
+
+xdg-open $url
