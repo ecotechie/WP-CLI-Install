@@ -2,69 +2,75 @@
 set -e
 set -o pipefail
 
-#TODO
-#create wp-cli-add command in repo:
-#wp-cli-add --name ALIAS_NAME --user SSH_USER --host-name DOMAIN.COM --wp-path /VAR/WWW/PUBLIC/
-#ssh $user@$host_name 'bash -s' -- < ./wp-cli-installed
-
+server=$2
 install_flag=""
 remove_flag=""
 force_flag=""
 debug_flag=""
 
 print_usage() {
-  echo "options:"
-  echo "-i	Install WP-CLI"
-  echo "-r	Remove WP-CLI and cleanup"
-  echo "-f	Force install when WP-CLI is already installed"
-  echo "-d	Debug script"
-  exit 1
+	echo
+	echo "NAME"
+	echo
+	echo "	wp-cli-install"
+	echo
+	echo "DESCRIPTION"
+	echo
+	echo "	Install, Remove, Force Install and Debug WP-CLI installation over SSH."
+	echo "	Server name can be in the form of user@domain or an alias from ~/.ssh/config"
+	echo
+	echo "SYNOPSYS"
+	echo
+	echo "	wp-cli-install <flag(s)> <server>"
+	echo
+	echo "FLAGS:"
+	echo "	-i	Install WP-CLI"
+	echo "	-r	Remove WP-CLI and cleanup"
+	echo "	-f	Force install when WP-CLI is already installed"
+	echo "	-d	Debug script"
+	echo
+	exit 1
 }
 
-[[ "$1" == "" ]] && echo "This command must be followed by a flag!" && print_usage
-
 while getopts 'irfd' flag; do
-  case "${flag}" in
-    i) install_flag="true" ;;
-    r) remove_flag="true" ;;
-    f) force_flag="true" ;;
-    d) debug_flag="true" ;;
-    *) print_usage ;;
-  esac
+	case "${flag}" in
+		i) install_flag="true" ;;
+		r) remove_flag="true" ;;
+		f) force_flag="true" ;;
+		d) debug_flag="true" ;;
+		*) print_usage ;;
+	esac
 done
+
+[[ -z "$2" ]] || [[ ! "$1" =~ -. ]] && echo "This command must be followed by an option flag, then server name!" && print_usage
 
 [[ $debug_flag ]] && set -x
 
-
 if [[ "$remove_flag" == "true" ]]; then
+	ssh $server '
 	echo "Removing WP-CLI"
-	rm $HOME/bin/wp $HOME/.wp-cli >/dev/null 2>&1
-	sed -i "/#WP-CLI-Install/d"  $HOME/.bashrc
+	sudo rm -rf /usr/local/bin/wp $HOME/.wp-cli
 	sed -i "/#WP-CLI-Install/d" $HOME/.bash_profile
 	exit 1
-fi
-
-if [[ ! "$force_flag" == "true" && -x "$(command -v wp)" ]]; then
-	echo "WP-CLI is installed!"
-	echo "To force installation, use -f flag."
-	exit 1
+	'
 fi
 
 # If WP-CLI is not installed and user is not "root"
 if [[ "$install_flag" == "true" && "$EUID" -ne 0 ]]; then
+	ssh -T $server "bash -s $force_flag" <<EOF
+	[[ -z "$force_flag" ]] && [[ -n "$(command -v wp)" ]] && echo "WP-CLI is already installed! Use -f flag to force." && exit 1
 	echo "Installing WP-CLI"
-	mkdir -p $HOME/.wp-cli $HOME/bin
-	cd $HOME/.wp-cli
+	mkdir -p ~/.wp-cli
+	cd ~/.wp-cli
 
 	curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
 	chmod +x wp-cli.phar
-	mv wp-cli.phar $HOME/bin/wp
-	echo "PATH=$HOME/bin:$PATH #WP-CLI-Install" >> $HOME/.bashrc
-	. $HOME/.bashrc
+	sudo mv wp-cli.phar /usr/local/bin/wp
 
 	curl -O https://raw.githubusercontent.com/wp-cli/wp-cli/master/utils/wp-completion.bash
-	echo "source $HOME/.wp-cli/wp-completion.bash #WP-CLI-Install" >> $HOME/.bash_profile
-	. $HOME/.bash_profile
+	echo "source ~/.wp-cli/wp-completion.bash #WP-CLI-Install" >> ~/.bash_profile
+	. ~/.bash_profile
+EOF
 fi
 
 exit 1
