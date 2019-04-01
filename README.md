@@ -1,2 +1,2 @@
-# WP CLI Install
-Shell script to install WP-CLI
+# WordPress init scritp
+Shell script to install WP-CLI and WordPress with several options...
