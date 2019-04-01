@@ -1,0 +1,249 @@
+#!/usr/bin/env bash
+set -e
+set -o pipefail
+
+print_usage() {
+	echo
+	echo -e ${Purple}"NAME"${Reset}
+	echo
+	echo "	wp-init"
+	echo
+	echo -e ${Purple}"DESCRIPTION"${Reset}
+	echo
+	echo "	Install or Remove WP-CLI installation over SSH"
+	echo "	Optionally, install WordPress as well"
+	echo
+	echo -e ${Purple}"SYNOPSYS"${Reset}
+	echo
+	echo "	wp-init --server <server> <flag(s)>"
+	echo
+	echo -e ${Purple}"FLAGS:"${Reset}
+	echo "	--help,	-h	Show this usage message"
+	echo "	--server,	-s	Server name, can be in the form of user@domain or an alias from ~/.ssh/config"
+	echo "	--cli,	-i	Install WP-CLI"
+	echo "	--remove-cli,	-r	Remove WP-CLI and cleanup"
+	echo "	--core,	-c	Install WordPress after WP-CLI"
+	echo "	--debug,	-d	Debug script"
+	echo
+	exit 1
+}
+
+# Example usage:
+# echo -e ${Red}This text will be red!${Reset}
+Colors() {
+	Escape="\033";
+
+	# Reset
+	Reset="${Escape}[0m"       # Text Reset
+
+	# Regular Colors
+	Black="${Escape}[0;30m"        # Black
+	Red="${Escape}[0;31m"          # Red
+	Green="${Escape}[0;32m"        # Green
+	Yellow="${Escape}[0;33m"       # Yellow
+	Blue="${Escape}[0;34m"         # Blue
+	Purple="${Escape}[0;35m"       # Purple
+	Cyan="${Escape}[0;36m"         # Cyan
+	White="${Escape}[0;37m"        # White
+
+	# Bold
+	BBlack="${Escape}[1;30m"       # Black
+	BRed="${Escape}[1;31m"         # Red
+	BGreen="${Escape}[1;32m"       # Green
+	BYellow="${Escape}[1;33m"      # Yellow
+	BBlue="${Escape}[1;34m"        # Blue
+	BPurple="${Escape}[1;35m"      # Purple
+	BCyan="${Escape}[1;36m"        # Cyan
+	BWhite="${Escape}[1;37m"       # White
+
+	# Underline
+	Underline="${Escape}[4m"
+	UBlack="${Escape}[4;30m"       # Black
+	URed="${Escape}[4;31m"         # Red
+	UGreen="${Escape}[4;32m"       # Green
+	UYellow="${Escape}[4;33m"      # Yellow
+	UBlue="${Escape}[4;34m"        # Blue
+	UPurple="${Escape}[4;35m"      # Purple
+	UCyan="${Escape}[4;36m"        # Cyan
+	UWhite="${Escape}[4;37m"       # White
+
+	# Background
+	On_Black="${Escape}[40m"       # Black
+	On_Red="${Escape}[41m"         # Red
+	On_Green="${Escape}[42m"       # Green
+	On_Yellow="${Escape}[43m"      # Yellow
+	On_Blue="${Escape}[44m"        # Blue
+	On_Purple="${Escape}[45m"      # Purple
+	On_Cyan="${Escape}[46m"        # Cyan
+	On_White="${Escape}[47m"       # White
+
+	# High Intensity
+	IBlack="${Escape}[0;90m"       # Black
+	IRed="${Escape}[0;91m"         # Red
+	IGreen="${Escape}[0;92m"       # Green
+	IYellow="${Escape}[0;93m"      # Yellow
+	IBlue="${Escape}[0;94m"        # Blue
+	IPurple="${Escape}[0;95m"      # Purple
+	ICyan="${Escape}[0;96m"        # Cyan
+	IWhite="${Escape}[0;97m"       # White
+
+	# Bold High Intensity
+	BIBlack="${Escape}[1;90m"      # Black
+	BIRed="${Escape}[1;91m"        # Red
+	BIGreen="${Escape}[1;92m"      # Green
+	BIYellow="${Escape}[1;93m"     # Yellow
+	BIBlue="${Escape}[1;94m"       # Blue
+	BIPurple="${Escape}[1;95m"     # Purple
+	BICyan="${Escape}[1;96m"       # Cyan
+	BIWhite="${Escape}[1;97m"      # White
+
+	# High Intensity backgrounds
+	On_IBlack="${Escape}[0;100m"   # Black
+	On_IRed="${Escape}[0;101m"     # Red
+	On_IGreen="${Escape}[0;102m"   # Green
+	On_IYellow="${Escape}[0;103m"  # Yellow
+	On_IBlue="${Escape}[0;104m"    # Blue
+	On_IPurple="${Escape}[0;105m"  # Purple
+	On_ICyan="${Escape}[0;106m"    # Cyan
+	On_IWhite="${Escape}[0;107m"   # White
+}
+Colors
+
+
+while [ ! $# -eq 0 ]
+do
+	case "$1" in
+		--help | -h)
+			print_usage
+			exit
+			;;
+		--server | -s)
+			server=$2
+			;;
+		--cli | -i)
+			cli_flag="true"
+			;;
+		--remove-cli | -r)
+			remove_cli_flag="true"
+			;;
+		--core | -c)
+			core_flag="true"
+			cli_flag="true"
+			;;
+		--debug | -d)
+			debug_flag="true"
+			;;
+		-*)
+			echo -e ${Red}"$1${Reset} is not a valid argument!"
+			print_usage
+			exit 1
+			;;
+	esac
+	shift
+done
+
+[[ -z "$server" ]] && [[ ! "$cli_flag" == "true" || ! "$remove_cli_flag" == "true" || ! "$core_flag" == "true" ]] && echo "The wp-init command ${Red}must${Reset} have the ${Purple}--server${Reset} flag set and ${Purple}at least one${Reset} of the optional flags!" && print_usage
+
+[[ $debug_flag ]] && set -x
+
+if [[ "$remove_cli_flag" == "true" ]]; then
+	ssh $server '
+	echo "Removing WP-CLI:"
+	sudo rm -rf /usr/local/bin/wp $HOME/.wp-cli
+	sed -i "/#WP-CLI-Install/d" $HOME/.bash_profile
+	exit
+	'
+fi
+
+if [[ "$cli_flag" == "true" ]]; then
+	function cli_install {
+		echo "Installing WP-CLI:"
+		ssh -T $server '
+		mkdir -p ~/.wp-cli
+		cd ~/.wp-cli
+
+		curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+		chmod +x wp-cli.phar
+		sudo mv wp-cli.phar /usr/local/bin/wp
+
+		curl -O https://raw.githubusercontent.com/wp-cli/wp-cli/master/utils/wp-completion.bash
+		echo "source ~/.wp-cli/wp-completion.bash #WP-CLI-Install" >> ~/.bash_profile
+		. ~/.bash_profile
+		'
+	}
+	# If WP-CLI is already installed
+	if [[ -n "$(wp --info --ssh=$server)" ]]; then
+		echo
+		echo -e ${Red}"WP-CLI is already installed!"${Reset}
+		while true
+		do
+			read -r -p "Overwrite installation? [Y/n] " input
+			echo
+
+			case $input in
+				[yY][eE][sS]|[yY])
+				cli_install
+				break
+				;;
+				[nN][oO]|[nN])
+				echo "Leaving WP-CLI as is..."
+				break
+				;;
+				*)
+				echo "Invalid input..."
+				;;
+			esac
+		done
+	else
+		cli_install
+	fi
+fi
+
+if [[ "$core_flag" == "true" ]]; then
+	echo
+	echo "Installing WordPress:"
+	echo
+	ssh_server=" --ssh=$server"
+	if [[ ! "$(wp @$server --info)" ]]; then
+		echo
+		echo -e ${Red}"$server is not configured with a WP-CLI @alias in ~/.wp-cli/config.yml!"${Reset}
+		while true
+		do
+			read -r -p "Want to manually enter $server's WordPress destination directory? [Y/n] " input
+			echo
+
+			case $input in
+				[yY][eE][sS]|[yY])
+					echo -e ${Underline}"What's the full path to where you'd like WordPress installed?${Reset} " full_path
+					wp_path=" --path=$full_path"
+					break
+					;;
+				[nN][oO]|[nN])
+					echo "You will need to manually add the server to your config file:"
+					echo "https://make.wordpress.org/cli/handbook/running-commands-remotely/#aliases"
+					echo "Exiting!"
+					exit
+					;;
+				*)
+					echo
+					echo "Invalid input..."
+					;;
+			esac
+		done
+	else
+		# Getting the full path to the server
+		document_root="$(wp @$server eval 'print_r($_SERVER["DOCUMENT_ROOT"]);' --skip-wordpress)"
+		wp_path=" --path=$document_root"
+	fi
+
+	wp core download --force $ssh_server
+	wp config create --prompt=dbname,dbuser,dbpass $ssh_server $wp_path
+	wp db create $ssh_server $wp_path
+	wp core install --prompt=url,title,admin_user,admin_password,admin_email $ssh_server $wp_path
+
+	url=$(wp option get siteurl $ssh_server $wp_path)
+
+	xdg-open $url
+fi
+
+exit
