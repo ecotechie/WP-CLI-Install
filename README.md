@@ -14,9 +14,9 @@ Optionally, install WordPress as well
 
 ## FLAGS:
 
-**--help**,       **-h**	Show this usage message
-**--server**,     **-s**	Server name, can be in the form of user@domain or an alias from ~/.ssh/config
-**--cli**,        **-i**	Install WP-CLI
-**--remove-cli**,	**-r**	Remove WP-CLI and cleanup
-**--core**,       **-c**	Install WordPress after WP-CLI
-**--debug**,      **-d**	Debug script
+**--help**,       **-h**	Show this usage message  
+**--server**,     **-s**	Server name, can be in the form of user@domain or an alias from ~/.ssh/config  
+**--cli**,        **-i**	Install WP-CLI  
+**--remove-cli**,	**-r**	Remove WP-CLI and cleanup  
+**--core**,       **-c**	Install WordPress after WP-CLI  
+**--debug**,      **-d**	Debug script  
