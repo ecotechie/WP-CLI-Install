@@ -15,15 +15,15 @@ print_usage() {
 	echo
 	echo -e ${Purple}"SYNOPSYS"${Reset}
 	echo
-	echo "	wp-init --server <server> <flag(s)>"
+	echo "	wp-init --host <host> <flag(s)>"
 	echo
 	echo -e ${Purple}"FLAGS:"${Reset}
-	echo "	--help,	-h	Show this usage message"
-	echo "	--server,	-s	Server name, can be in the form of user@domain or an alias from ~/.ssh/config"
-	echo "	--cli,	-i	Install WP-CLI"
-	echo "	--remove-cli,	-r	Remove WP-CLI and cleanup"
-	echo "	--core,	-c	Install WordPress after WP-CLI"
-	echo "	--debug,	-d	Debug script"
+	echo "	--help, -h		Show this usage message"
+	echo "	--host, -s		Host name, can be in the form of user@domain or an alias from ~/.ssh/config"
+	echo "	--cli, -i		Install WP-CLI"
+	echo "	--cli-remove, -r	Remove WP-CLI and cleanup"
+	echo "	--core, -c		Install WordPress after WP-CLI"
+	echo "	--debug, -d		Debug script"
 	echo
 	exit 1
 }
@@ -117,8 +117,8 @@ do
 			print_usage
 			exit
 			;;
-		--server | -s)
-			server=$2
+		--host | -s)
+			host=$2
 			;;
 		--cli | -i)
 			cli_flag="true"
@@ -142,23 +142,25 @@ do
 	shift
 done
 
-[[ -z "$server" ]] && [[ ! "$cli_flag" == "true" || ! "$remove_cli_flag" == "true" || ! "$core_flag" == "true" ]] && echo "The wp-init command ${Red}must${Reset} have the ${Purple}--server${Reset} flag set and ${Purple}at least one${Reset} of the optional flags!" && print_usage
+[[ -z "$host" ]] && [[ ! "$cli_flag" == "true" || ! "$remove_cli_flag" == "true" || ! "$core_flag" == "true" ]] && echo -e "The wp-init command ${Red}must${Reset} have the ${Purple}--host${Reset} flag set and ${Purple}at least one${Reset} of the optional flags!" && print_usage
 
 [[ $debug_flag ]] && set -x
 
 if [[ "$remove_cli_flag" == "true" ]]; then
-	ssh $server '
-	echo "Removing WP-CLI:"
+	echo -e ${Purple}"Removing WP-CLI:"${Reset}
+	echo
+	ssh $host '
 	sudo rm -rf /usr/local/bin/wp $HOME/.wp-cli
 	sed -i "/#WP-CLI-Install/d" $HOME/.bash_profile
+	echo "WP-CLI removed..."
 	exit
 	'
 fi
 
 if [[ "$cli_flag" == "true" ]]; then
 	function cli_install {
-		echo "Installing WP-CLI:"
-		ssh -T $server '
+		echo -e ${Purple}"Installing WP-CLI:"${Reset}
+		ssh -T $host '
 		mkdir -p ~/.wp-cli
 		cd ~/.wp-cli
 
@@ -172,7 +174,7 @@ if [[ "$cli_flag" == "true" ]]; then
 		'
 	}
 	# If WP-CLI is already installed
-	if [[ -n "$(wp --info --ssh=$server)" ]]; then
+	if [[ -n "$(wp --info --ssh=$host)" ]]; then
 		echo
 		echo -e ${Red}"WP-CLI is already installed!"${Reset}
 		while true
@@ -201,15 +203,15 @@ fi
 
 if [[ "$core_flag" == "true" ]]; then
 	echo
-	echo "Installing WordPress:"
+	echo -e ${Purple}"Installing WordPress:"${Reset}
 	echo
-	ssh_server=" --ssh=$server"
-	if [[ ! "$(wp @$server --info)" ]]; then
+	ssh_host=" --ssh=$host"
+	if [[ ! "$(wp @$host --info)" ]]; then
 		echo
-		echo -e ${Red}"$server is not configured with a WP-CLI @alias in ~/.wp-cli/config.yml!"${Reset}
+		echo -e ${Red}"$host is not configured with a WP-CLI @alias in ~/.wp-cli/config.yml!"${Reset}
 		while true
 		do
-			read -r -p "Want to manually enter $server's WordPress destination directory? [Y/n] " input
+			read -r -p "Want to manually enter $host's WordPress destination directory? [Y/n] " input
 			echo
 
 			case $input in
@@ -219,7 +221,7 @@ if [[ "$core_flag" == "true" ]]; then
 					break
 					;;
 				[nN][oO]|[nN])
-					echo "You will need to manually add the server to your config file:"
+					echo "You will need to manually add the host to your config file:"
 					echo "https://make.wordpress.org/cli/handbook/running-commands-remotely/#aliases"
 					echo "Exiting!"
 					exit
@@ -231,17 +233,17 @@ if [[ "$core_flag" == "true" ]]; then
 			esac
 		done
 	else
-		# Getting the full path to the server
-		document_root="$(wp @$server eval 'print_r($_SERVER["DOCUMENT_ROOT"]);' --skip-wordpress)"
+		# Getting the full path to the host
+		document_root="$(wp @$host eval 'print_r($_SERVER["DOCUMENT_ROOT"]);' --skip-wordpress)"
 		wp_path=" --path=$document_root"
 	fi
 
-	wp core download --force $ssh_server
-	wp config create --prompt=dbname,dbuser,dbpass $ssh_server $wp_path
-	wp db create $ssh_server $wp_path
-	wp core install --prompt=url,title,admin_user,admin_password,admin_email $ssh_server $wp_path
+	wp core download --force $ssh_host $wp_path
+	wp config create --prompt=dbname,dbuser,dbpass $ssh_host $wp_path
+	wp db create $ssh_host $wp_path
+	wp core install --prompt=url,title,admin_user,admin_password,admin_email $ssh_host $wp_path
 
-	url=$(wp option get siteurl $ssh_server $wp_path)
+	url=$(wp option get siteurl $ssh_host $wp_path)
 
 	xdg-open $url
 fi
