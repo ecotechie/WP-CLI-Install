@@ -20,3 +20,5 @@ Optionally, install WordPress as well
 **--remove-cli**,	**-r**	Remove WP-CLI and cleanup  
 **--core**,       **-c**	Install WordPress after WP-CLI  
 **--debug**,      **-d**	Debug script  
+
+![wp-init](https://github.com/ecotechie/wp-init/raw/master/Demo-wp-init.gif "Installing WP-CLI, WP-CLI command completion and WordPress")
