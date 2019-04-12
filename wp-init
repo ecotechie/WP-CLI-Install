@@ -152,6 +152,14 @@ done
 
 [[ $debug_flag ]] && set -x
 
+# Check ssh connection to $host
+ssh $host 'exit' && ssh_okay="good"
+if [[ -z "$ssh_okay" ]]; then
+	echo "Verify ssh connection settings to $host..."
+	echo "Exiting"
+	exit 1
+fi
+
 if [[ "$remove_cli_flag" == "true" ]]; then
 	echo -e ${Purple}"Removing WP-CLI:"${Reset}
 	echo
