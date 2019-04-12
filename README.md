@@ -18,8 +18,8 @@ Optionally, install WordPress as well
 **--host**,       **-s**	Host name, can be in the form of user@domain or an alias from ~/.ssh/config  
 **--cli**,        **-i**	Install WP-CLI  
 **--remove-cli**,	**-r**	Remove WP-CLI and cleanup  
-**--core**,       **-c**	Install WordPress after WP-CLI
-**--local**,      **-l**  Install WP-CLI and/or WordPress locally
+**--core**,       **-c**	Install WordPress after WP-CLI  
+**--local**,      **-l**  Install WP-CLI and/or WordPress locally  
 **--debug**,      **-d**	Debug script  
 
 ![wp-init](https://github.com/ecotechie/wp-init/raw/master/Demo-wp-init.gif "Installing WP-CLI, WP-CLI command completion and WordPress")
