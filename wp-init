@@ -23,6 +23,7 @@ print_usage() {
 	echo "	--cli, -i		Install WP-CLI"
 	echo "	--cli-remove, -r	Remove WP-CLI and cleanup"
 	echo "	--core, -c		Install WordPress after WP-CLI"
+	echo "	--local, -l		Install WP-CLI and/or WordPress locally"
 	echo "	--debug, -d		Debug script"
 	echo
 	exit 1
@@ -119,6 +120,8 @@ do
 			;;
 		--host | -s)
 			host=$2
+			ssh_host_flag=" --ssh=$host"
+			alias_sign="@"
 			;;
 		--cli | -i)
 			cli_flag="true"
@@ -129,6 +132,9 @@ do
 		--core | -c)
 			core_flag="true"
 			cli_flag="true"
+			;;
+		--local | -l)
+			local_flag="true"
 			;;
 		--debug | -d)
 			debug_flag="true"
@@ -142,48 +148,54 @@ do
 	shift
 done
 
-[[ -z "$host" ]] && [[ ! "$cli_flag" == "true" || ! "$remove_cli_flag" == "true" || ! "$core_flag" == "true" ]] && echo -e "The wp-init command ${Red}must${Reset} have the ${Purple}--host${Reset} flag set and ${Purple}at least one${Reset} of the optional flags!" && print_usage
+[[ -z "$ssh_host_flag" && -z "$local_flag" ]] && [[ ! "$cli_flag" == "true" || ! "$remove_cli_flag" == "true" || ! "$core_flag" == "true" ]] && echo -e "The wp-init command ${Red}must${Reset} have the ${Purple}--host${Reset} or ${Purple}--local${Reset} flag set and ${Purple}at least one${Reset} of the optional flags!" && print_usage
 
 [[ $debug_flag ]] && set -x
 
 if [[ "$remove_cli_flag" == "true" ]]; then
 	echo -e ${Purple}"Removing WP-CLI:"${Reset}
 	echo
-	ssh $host '
-	sudo rm -rf /usr/local/bin/wp $HOME/.wp-cli
-	sed -i "/#WP-CLI-Install/d" $HOME/.bash_profile
-	echo "WP-CLI removed..."
-	exit
+	remove_cli='
+	sudo rm -rf /usr/local/bin/wp $HOME/.wp-cli;
+	sed -i "/#WP-CLI-Install/d" $HOME/.bash_profile;
+	echo "WP-CLI removed...";
+	exit;
 	'
+	[[ -z "$local_flag" ]] && ssh $host $remove_cli || eval $remove_cli
 fi
 
 if [[ "$cli_flag" == "true" ]]; then
 	function cli_install {
 		echo -e ${Purple}"Installing WP-CLI:"${Reset}
-		ssh -T $host '
-		mkdir -p ~/.wp-cli
-		cd ~/.wp-cli
+		# If cd - is not used at the end of $install_cli the path gets set to the ~/.wp-cli folder
+		# Not sure why...
+		install_cli='
+		mkdir -p ~/.wp-cli;
+		cd ~/.wp-cli;
 
-		curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
-		chmod +x wp-cli.phar
-		sudo mv wp-cli.phar /usr/local/bin/wp
+		curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar;
+		chmod +x wp-cli.phar;
+		sudo mv wp-cli.phar /usr/local/bin/wp;
 
-		curl -O https://raw.githubusercontent.com/wp-cli/wp-cli/master/utils/wp-completion.bash
-		echo "source ~/.wp-cli/wp-completion.bash #WP-CLI-Install" >> ~/.bash_profile
-		. ~/.bash_profile
+		curl -O https://raw.githubusercontent.com/wp-cli/wp-cli/master/utils/wp-completion.bash;
+		echo "source ~/.wp-cli/wp-completion.bash #WP-CLI-Install" >> ~/.bash_profile;
+		. ~/.bash_profile;
+		cd -;
 		'
+		[[ -z "$local_flag" ]] && ssh -T $host $install_cli || eval $install_cli
 	}
 	# If WP-CLI is already installed
-	if [[ -n "$(wp --info --ssh=$host)" ]]; then
+	cli_version=$(wp cli version $ssh_host_flag)
+	if [[ -n "$cli_version" ]]; then
 		echo
-		echo -e ${Red}"WP-CLI is already installed!"${Reset}
+		echo -e ${Red}"$cli_version is already installed!"${Reset}
 		while true
 		do
 			read -r -p "Overwrite installation? [Y/n] " input
 			echo
 
 			case $input in
-				[yY][eE][sS]|[yY])
+				[yY][eE][sS]|[yY]|"")
 				cli_install
 				break
 				;;
@@ -205,8 +217,7 @@ if [[ "$core_flag" == "true" ]]; then
 	echo
 	echo -e ${Purple}"Installing WordPress:"${Reset}
 	echo
-	ssh_host=" --ssh=$host"
-	if [[ ! "$(wp @$host --info)" ]]; then
+	if [[ -z "$local_flag" && ! "$(wp @$host --info)" ]]; then
 		echo
 		echo -e ${Red}"$host is not configured with a WP-CLI @alias in ~/.wp-cli/config.yml!"${Reset}
 		while true
@@ -215,37 +226,54 @@ if [[ "$core_flag" == "true" ]]; then
 			echo
 
 			case $input in
-				[yY][eE][sS]|[yY])
-					echo -e ${Underline}"What's the full path to where you'd like WordPress installed?${Reset} " full_path
-					wp_path=" --path=$full_path"
-					break
-					;;
+				[yY][eE][sS]|[yY]|"")
+				echo
+				read -r -p "What's the full path to where you'd like WordPress installed? " document_root
+				path_flag=("--path=${document_root[*]}")
+				break
+				;;
 				[nN][oO]|[nN])
-					echo "You will need to manually add the host to your config file:"
-					echo "https://make.wordpress.org/cli/handbook/running-commands-remotely/#aliases"
-					echo "Exiting!"
-					exit
-					;;
+				echo
+				echo "You will need to manually add the host to your config file:"
+				echo "https://make.wordpress.org/cli/handbook/running-commands-remotely/#aliases"
+				echo "Exiting!"
+				exit
+				;;
 				*)
-					echo
-					echo "Invalid input..."
-					;;
+				echo
+				echo "Invalid input..."
+				;;
 			esac
 		done
+		echo
+		read -r -p "Create WP-CLI @alias for $host host with a WordPress path of $document_root? [y/N] " add_alias
+		if [[ "$add_alias" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+			# How to keep nested multi line variables in the correct format:
+			# https://stackoverflow.com/a/23930212/6041422
+			read -r -d '\0' new_alias <<- EOM
+			@$host:
+			  ssh: $host
+			  path: $document_root
+			\0
+			EOM
+			# Couldn't get a new line at the begining of the $new_alias variable so adding -e and \n to the echo
+			echo -e >> $HOME/.wp-cli/config.yml "\n$new_alias"
+		fi
 	else
 		# Getting the full path to the host
-		document_root="$(wp @$host eval 'print_r($_SERVER["DOCUMENT_ROOT"]);' --skip-wordpress)"
-		wp_path=" --path=$document_root"
+		document_root="$(wp $alias_sign$host eval 'print_r($_SERVER["DOCUMENT_ROOT"]);' --skip-wordpress)"
+		path_flag=" --path=$document_root"
 	fi
 
-	wp core download --force $ssh_host $wp_path
-	wp config create --prompt=dbname,dbuser,dbpass $ssh_host $wp_path
-	wp db create $ssh_host $wp_path
-	wp core install --prompt=url,title,admin_user,admin_password,admin_email $ssh_host $wp_path
+	wp core download --force $ssh_host_flag $path_flag
+	wp config create --prompt=dbname,dbuser,dbpass $ssh_host_flag $path_flag
+	wp db create $ssh_host_flag $path_flag
+	wp core install --prompt=url,title,admin_user,admin_password,admin_email $ssh_host_flag $path_flag
 
-	url=$(wp option get siteurl $ssh_host $wp_path)
-
-	xdg-open $url
+	if [[ -z "$local_flag" ]]; then
+		read -r -p "Want to open your new WordPress installation in a browser? [y/N] " response
+		[[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]] && url=$(wp option get siteurl $ssh_host_flag $path_flag) && xdg-open $url
+	fi
 fi
 
 exit
