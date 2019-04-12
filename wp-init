@@ -15,7 +15,7 @@ print_usage() {
 	echo
 	echo -e ${Purple}"SYNOPSYS"${Reset}
 	echo
-	echo "	wp-init --host <host> <flag(s)>"
+	echo "	wp-init [--host <host>][--local] <flag(s)>"
 	echo
 	echo -e ${Purple}"FLAGS:"${Reset}
 	echo "	--help, -h		Show this usage message"
